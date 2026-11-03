@@ -20,8 +20,12 @@ const personSchema = z.object({
 
 const editPersonSchema = personSchema.omit({ attendanceMode: true })
 const editEnrollmentSchema = z.object({ attendanceMode: modeSchema })
-const assignSchema = z.object({ groupId: z.coerce.number().int().positive() })
-const importSchema = z.object({ fileBase64: z.string().min(1), commit: z.boolean().default(false) })
+const assignSchema = z.object({ groupId: z.union([z.coerce.number().int().positive(), z.null()]) })
+const importSchema = z.object({
+  fileBase64: z.string().min(1),
+  commit: z.boolean().default(false),
+  decisions: z.record(z.string(), z.enum(['IMPORT', 'SKIP'])).optional(),
+})
 
 const sameName = (a: string, b: string) => a.trim().replace(/\s+/g, ' ').toLowerCase() === b.trim().replace(/\s+/g, ' ').toLowerCase()
 const requireAdmin = (user: SessionUser | null) => (user?.role === 'ADMIN' ? null : jsonError(403, 'Forbidden'))
@@ -161,6 +165,31 @@ async function parseRoster(buffer: Buffer<ArrayBuffer>): Promise<{ error: string
   return { rows }
 }
 
+function levenshtein(a: string, b: string) {
+  const dp = Array.from({ length: b.length + 1 }, (_, j) => j)
+  for (let i = 1; i <= a.length; i++) {
+    let diagonal = dp[0]
+    dp[0] = i
+    for (let j = 1; j <= b.length; j++) {
+      const above = dp[j]
+      dp[j] = Math.min(dp[j] + 1, dp[j - 1] + 1, diagonal + (a[i - 1] === b[j - 1] ? 0 : 1))
+      diagonal = above
+    }
+  }
+  return dp[b.length]
+}
+
+// Names are compared without case, spacing or word order, and allow a small typo.
+const nameKey = (s: string) => s.toLowerCase().split(/[^a-z]+/).filter(Boolean).sort().join('')
+const regKey = (s: string) => s.toUpperCase().replace(/[^A-Z0-9]/g, '')
+
+const namesLike = (a: string, b: string) => {
+  const na = nameKey(a)
+  const nb = nameKey(b)
+  return na === nb || (na.length >= 6 && levenshtein(na, nb) <= 2)
+}
+const regsLike = (a: string, b: string) => levenshtein(regKey(a), regKey(b)) <= 1
+
 // Preview (commit: false) classifies every row without writing. Commit (commit: true) writes the valid rows in one transaction.
 async function importRoster(req: Request, actor: SessionUser, classId: number) {
   const parsed = importSchema.safeParse(await req.json().catch(() => null))
@@ -192,19 +221,51 @@ async function importRoster(req: Request, actor: SessionUser, classId: number) {
     return { ...data, status: match ? 'EXISTING' : 'NEW', reason: null }
   })
 
+  // Rows that look like someone already known (same name with different registration, or a one-character difference).
+  // Each needs an explicit decision before the import can be confirmed.
+  const importable = classified.filter((r) => r.status === 'NEW' || r.status === 'EXISTING')
+  const people = (await query(`SELECT id, full_name AS "fullName", registration_number AS "registrationNumber" FROM participants`)) as { id: string; fullName: string; registrationNumber: string }[]
+  const flags = importable.flatMap((row) => {
+    const fileMatches = importable
+      .filter((o) => o.rowNumber < row.rowNumber)
+      .map((o) => ({ match: o, source: 'FILE' as const }))
+    const systemMatches = people.map((p) => ({ match: p, source: 'SYSTEM' as const }))
+    const candidates = [...fileMatches, ...systemMatches].filter(({ match }) => match.registrationNumber !== row.registrationNumber)
+    // A name match is the stronger signal, so it is reported ahead of a registration-only match.
+    const hit =
+      candidates.find(({ match }) => namesLike(row.fullName, match.fullName)) ??
+      candidates.find(({ match }) => regsLike(row.registrationNumber, match.registrationNumber))
+    if (!hit) return []
+    return [{
+      rowNumber: row.rowNumber,
+      fullName: row.fullName,
+      registrationNumber: row.registrationNumber,
+      matchName: hit.match.fullName as string,
+      matchRegistrationNumber: hit.match.registrationNumber as string,
+      matchSource: hit.source,
+    }]
+  })
+
+  const decisions = parsed.data.decisions ?? {}
+  const undecided = flags.filter((f) => !decisions[String(f.rowNumber)])
+  const skipped = new Set(flags.filter((f) => decisions[String(f.rowNumber)] === 'SKIP').map((f) => f.rowNumber))
+
   const count = (s: string) => classified.filter((r) => r.status === s).length
   const summary = {
     totalRecords: classified.length,
-    toImport: count('NEW') + count('EXISTING'),
+    toImport: importable.filter((r) => !skipped.has(r.rowNumber)).length,
     duplicates: count('DUPLICATE'),
     invalid: count('INVALID'),
     conflicts: count('CONFLICT'),
+    needsReview: flags.length,
+    skippedAsSamePerson: skipped.size,
   }
 
-  if (!parsed.data.commit) return json({ summary, rows: classified, committed: false })
+  if (!parsed.data.commit) return json({ summary, rows: classified, flags, committed: false })
+  if (undecided.length) return jsonError(400, `Confirm the ${undecided.length} possible duplicate(s) before importing`)
 
   // Bulk inserts keep large rosters well inside function time limits. Preview already resolved duplicates and conflicts.
-  const toEnroll = classified.filter((r) => r.status === 'NEW' || r.status === 'EXISTING')
+  const toEnroll = importable.filter((r) => !skipped.has(r.rowNumber))
   const newPeople = toEnroll.filter((r) => r.status === 'NEW')
   if (toEnroll.length) {
     await transaction(async (q) => {
@@ -289,12 +350,22 @@ export async function enrollments(req: Request, user: SessionUser | null, enroll
     return json({ participant: after })
   }
 
-  // Assigns an unassigned participant to a group. Moving someone between groups is a transfer (Phase 6).
+  // Assigns an unassigned participant to a group, or removes them from their group (groupId null).
+  // Moving someone straight from one group to another is a transfer (Phase 6).
   if (req.method === 'PATCH' && rest.length === 1 && rest[0] === 'group') {
     const parsed = assignSchema.safeParse(await req.json().catch(() => null))
-    if (!parsed.success) return jsonError(400, 'Choose a group')
-    if (before.groupId) return jsonError(409, `${before.fullName} is already in ${before.groupName}. Use Move to change groups.`)
+    if (!parsed.success) return jsonError(400, 'Choose a group, or remove the participant from their group')
     const groupId = parsed.data.groupId
+
+    if (groupId === null) {
+      if (!before.groupId) return jsonError(409, `${before.fullName} is not in a group`)
+      await query(`UPDATE class_enrollments SET group_id = NULL, updated_at = now() WHERE id = $1`, [enrollmentId])
+      const [after] = await query(`${ENROLLMENT_SELECT} WHERE enrollment_id = $1`, [enrollmentId])
+      await logActivity({ userId: actor.id, action: 'PARTICIPANT_UNASSIGNED', entityType: 'PARTICIPANT', entityId: before.participantId, description: `Removed ${before.fullName} from ${before.groupName}`, oldValues: { groupId: before.groupId }, newValues: { groupId: null } })
+      return json({ participant: after })
+    }
+
+    if (before.groupId) return jsonError(409, `${before.fullName} is already in ${before.groupName}. Use Move to change groups.`)
     await query(`UPDATE class_enrollments SET group_id = $1, updated_at = now() WHERE id = $2`, [groupId, enrollmentId])
     const [after] = await query(`${ENROLLMENT_SELECT} WHERE enrollment_id = $1`, [enrollmentId])
     await logActivity({ userId: actor.id, action: 'PARTICIPANT_ASSIGNED', entityType: 'PARTICIPANT', entityId: before.participantId, description: `Assigned ${before.fullName} to ${after.groupName}`, oldValues: { groupId: null }, newValues: { groupId } })

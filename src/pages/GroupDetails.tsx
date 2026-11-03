@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, Button, Card, Descriptions, Input, Select, Skeleton, Space, Table, Tag, Typography, message } from 'antd'
+import { Alert, Button, Card, Descriptions, Input, Popconfirm, Select, Skeleton, Space, Table, Tag, Typography, message } from 'antd'
 import type { TableProps } from 'antd'
-import { ArrowLeft, Archive, ArchiveRestore, Pencil, UserPlus } from 'lucide-react'
+import { ArrowLeft, Archive, ArchiveRestore, Pencil, UserMinus, UserPlus } from 'lucide-react'
 import GroupFormModal, { type GroupFormValues } from '../components/groups/GroupFormModal'
 import { useAuth } from '../context/AuthContext'
 import { api, ApiError } from '../services/api'
@@ -70,6 +70,15 @@ export default function GroupDetails() {
     onError: fail,
   })
 
+  const unassign = useMutation({
+    mutationFn: (enrollmentId: string) => api(`/enrollments/${enrollmentId}/group`, { method: 'PATCH', body: { groupId: null } }),
+    onSuccess: () => {
+      message.success('Participant removed from the group')
+      refresh()
+    },
+    onError: fail,
+  })
+
   if (group.isLoading) return <Card><Skeleton active /></Card>
   if (group.isError || !g) return <Alert type="error" showIcon message="Could not load this group" description={group.error?.message} />
 
@@ -83,6 +92,23 @@ export default function GroupDetails() {
     { title: 'Registration number', dataIndex: 'registrationNumber' },
     { title: 'Phone', dataIndex: 'phoneNumber', render: (v: string | null) => (v ?? <Typography.Text type="secondary">Hidden</Typography.Text>) },
     { title: 'Attendance', dataIndex: 'attendanceMode', render: (m: AttendanceMode) => <AttendanceTag mode={m} /> },
+    ...(isAdmin
+      ? [{
+          title: '',
+          key: 'remove',
+          render: (_: unknown, m: Enrollment) => (
+            <Popconfirm
+              title={`Remove ${m.fullName} from ${g.name}?`}
+              description="They will become unassigned and can be added to another group later."
+              okText="Remove"
+              okButtonProps={{ danger: true }}
+              onConfirm={() => unassign.mutate(m.enrollmentId)}
+            >
+              <Button danger size="small" icon={<UserMinus size={14} />}>Remove</Button>
+            </Popconfirm>
+          ),
+        }]
+      : []),
   ]
 
   return (

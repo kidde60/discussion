@@ -21,6 +21,17 @@ export type ImportSummary = {
   duplicates: number
   invalid: number
   conflicts: number
+  needsReview: number
+  skippedAsSamePerson: number
+}
+
+export type ImportFlag = {
+  rowNumber: number
+  fullName: string
+  registrationNumber: string
+  matchName: string
+  matchRegistrationNumber: string
+  matchSource: 'FILE' | 'SYSTEM'
 }
 
 export type ImportRow = {
