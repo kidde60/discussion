@@ -153,7 +153,7 @@ export default function GroupDetails() {
               style={{ width: 360 }}
               options={(unassigned.data ?? [])
                 .filter((p) => p.attendanceMode === g.attendanceMode)
-                .map((p) => ({ value: p.enrollmentId, label: `${p.fullName} (${p.registrationNumber})` }))}
+                .map((p) => ({ value: p.enrollmentId, label: `${p.fullName} (${p.registrationNumber}) · ${p.attendanceMode === 'ONLINE' ? 'Online' : 'Physical'}` }))}
             />
             <Button icon={<UserPlus size={14} />} disabled={!assignId} loading={assign.isPending} onClick={() => assignId && assign.mutate(assignId)}>
               Assign

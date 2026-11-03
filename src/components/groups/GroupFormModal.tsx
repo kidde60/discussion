@@ -30,7 +30,7 @@ type Props = {
 }
 
 export default function GroupFormModal({ open, editing, classId, classOptions, defaultCapacity, submitting, onCancel, onSubmit }: Props) {
-  const { control, handleSubmit, reset } = useForm<GroupFormValues>({
+  const { control, handleSubmit, reset, setValue } = useForm<GroupFormValues>({
     resolver: zodResolver(schema),
     defaultValues: { classId: classId ?? '', name: '', capacity: defaultCapacity, attendanceMode: 'ONLINE', groupLeaderId: null },
   })
@@ -43,6 +43,14 @@ export default function GroupFormModal({ open, editing, classId, classOptions, d
     queryFn: () => api<{ participants: Enrollment[] }>(`/classes/${leaderClass}/participants`).then((r) => r.participants),
   })
 
+  const classGroups = useQuery({
+    queryKey: ['class-groups', selectedClass],
+    enabled: open && !editing && Boolean(selectedClass),
+    queryFn: () => api<{ groups: GroupSummary[] }>(`/classes/${selectedClass}/groups`).then((r) => r.groups),
+  })
+  const nextNumber = Math.max(0, ...(classGroups.data ?? []).map((g) => g.groupNumber)) + 1
+  const suggestedName = `Group ${String(nextNumber).padStart(2, '0')}`
+
   useEffect(() => {
     if (!open) return
     reset(
@@ -52,7 +60,11 @@ export default function GroupFormModal({ open, editing, classId, classOptions, d
     )
   }, [open, editing, classId, defaultCapacity, reset])
 
-  const leaderOptions = (enrollments.data ?? []).map((p) => ({ value: p.enrollmentId, label: `${p.fullName} (${p.registrationNumber})` }))
+  useEffect(() => {
+    if (open && !editing && selectedClass && classGroups.data) setValue('name', suggestedName)
+  }, [open, editing, selectedClass, classGroups.data, suggestedName, setValue])
+
+  const leaderOptions = (enrollments.data ?? []).map((p) => ({ value: p.enrollmentId, label: `${p.fullName} (${p.registrationNumber}) · ${p.attendanceMode === 'ONLINE' ? 'Online' : 'Physical'}` }))
 
   return (
     <Modal
@@ -80,7 +92,7 @@ export default function GroupFormModal({ open, editing, classId, classOptions, d
           name="name"
           control={control}
           render={({ field }) => (
-            <Form.Item label="Group name" extra="Leave blank to use the next number, e.g. Group 05">
+            <Form.Item label="Group name" extra={editing ? undefined : 'Filled in with the next free number for this class. You can change it.'}>
               <Input {...field} placeholder="Group name" />
             </Form.Item>
           )}
