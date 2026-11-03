@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, Button, Card, Progress, Select, Space, Table, Tag, message } from 'antd'
+import { Alert, Button, Card, Input, Progress, Select, Space, Table, Tag, message } from 'antd'
 import type { TableProps } from 'antd'
-import { Plus } from 'lucide-react'
+import { Plus, Search } from 'lucide-react'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import GroupFormModal, { type GroupFormValues } from '../components/groups/GroupFormModal'
 import { useAuth } from '../context/AuthContext'
 import { api, ApiError } from '../services/api'
@@ -15,11 +16,14 @@ export default function Groups() {
   const { isAdmin } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [searchText, setSearchText] = useState('')
+  const search = useDebouncedValue(searchText.trim())
   const [classFilter, setClassFilter] = useState<string | undefined>()
   const [modeFilter, setModeFilter] = useState<string | undefined>()
   const [formOpen, setFormOpen] = useState(false)
 
   const query = new URLSearchParams()
+  if (search) query.set('search', search)
   if (classFilter) query.set('classId', classFilter)
   if (modeFilter) query.set('attendanceMode', modeFilter)
 
@@ -76,6 +80,7 @@ export default function Groups() {
       )}
     >
       <Space wrap className="mb-4">
+        <Input placeholder="Search by group or leader name" allowClear prefix={<Search size={14} />} value={searchText} onChange={(e) => setSearchText(e.target.value)} style={{ width: 280 }} />
         <Select allowClear placeholder="All classes" value={classFilter} onChange={setClassFilter} options={classOptions} style={{ width: 280 }} />
         <Select
           allowClear

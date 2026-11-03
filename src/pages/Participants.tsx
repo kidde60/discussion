@@ -3,7 +3,8 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Button, Card, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd'
 import type { TableProps } from 'antd'
-import { FileUp, Pencil, Plus } from 'lucide-react'
+import { FileUp, Pencil, Plus, Search } from 'lucide-react'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import ParticipantFormModal, { type ParticipantFormValues } from '../components/participants/ParticipantFormModal'
 import ImportRosterModal from '../components/participants/ImportRosterModal'
 import { useAuth } from '../context/AuthContext'
@@ -17,7 +18,8 @@ export default function Participants() {
   const { isAdmin } = useAuth()
   const queryClient = useQueryClient()
   const [params, setParams] = useSearchParams()
-  const [search, setSearch] = useState('')
+  const [searchText, setSearchText] = useState('')
+  const search = useDebouncedValue(searchText.trim())
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<Enrollment | null>(null)
   const [importOpen, setImportOpen] = useState(false)
@@ -102,7 +104,7 @@ export default function Participants() {
       )}
     >
       <Space wrap className="mb-4">
-        <Input.Search placeholder="Name or registration number" allowClear onSearch={setSearch} style={{ width: 260 }} />
+        <Input placeholder="Search by name" allowClear prefix={<Search size={14} />} value={searchText} onChange={(e) => setSearchText(e.target.value)} style={{ width: 260 }} />
         <Select
           allowClear
           placeholder="All classes"

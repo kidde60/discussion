@@ -54,13 +54,16 @@ export async function listGroups(url: URL) {
   const mode = modeParam === 'ONLINE' || modeParam === 'PHYSICAL' ? modeParam : null
   const statusParam = url.searchParams.get('status')
   const status = statusParam === 'ACTIVE' || statusParam === 'ARCHIVED' ? statusParam : null
+  const search = (url.searchParams.get('search') ?? '').trim()
+  const pattern = `%${search.replace(/[%_\\]/g, '\\$&')}%`
   const groups = await query(
     `${GROUP_SELECT}
      WHERE ($1::bigint IS NULL OR class_id = $1::bigint)
        AND ($2::text IS NULL OR attendance_mode = $2::text)
        AND ($3::text IS NULL OR status = $3::text)
+       AND ($4::text = '' OR name ILIKE $5 OR group_leader_name ILIKE $5)
      ORDER BY class_name, group_number`,
-    [classId, mode, status],
+    [classId, mode, status, search, pattern],
   )
   return json({ groups })
 }

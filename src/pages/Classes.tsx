@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Alert, Button, Card, Input, Popconfirm, Select, Space, Table, Tag, message } from 'antd'
 import type { TableProps } from 'antd'
-import { Archive, ArchiveRestore, Eye, Pencil, Plus } from 'lucide-react'
+import { Archive, ArchiveRestore, Eye, Pencil, Plus, Search } from 'lucide-react'
+import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import ClassFormModal, { type ClassFormValues } from '../components/classes/ClassFormModal'
 import { useAuth } from '../context/AuthContext'
 import { api, ApiError } from '../services/api'
@@ -13,7 +14,8 @@ export default function Classes() {
   const { isAdmin } = useAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [search, setSearch] = useState('')
+  const [searchText, setSearchText] = useState('')
+  const search = useDebouncedValue(searchText.trim())
   const [status, setStatus] = useState<ClassStatus | 'ALL'>('ALL')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<ClassSummary | null>(null)
@@ -103,7 +105,7 @@ export default function Classes() {
       extra={isAdmin && <Button type="primary" icon={<Plus size={16} />} onClick={openCreate}>Create class</Button>}
     >
       <Space wrap className="mb-4">
-        <Input.Search placeholder="Search by name or code" allowClear onSearch={setSearch} style={{ width: 280 }} />
+        <Input placeholder="Search by name or code" allowClear prefix={<Search size={14} />} value={searchText} onChange={(e) => setSearchText(e.target.value)} style={{ width: 280 }} />
         <Select
           value={status}
           onChange={setStatus}
