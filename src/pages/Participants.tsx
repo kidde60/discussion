@@ -55,10 +55,13 @@ export default function Participants() {
   const fail = (err: unknown) => message.error(err instanceof ApiError ? err.message : 'Something went wrong')
 
   const save = useMutation({
-    mutationFn: (values: ParticipantFormValues) =>
-      editing
-        ? api(`/participants/${editing.participantId}`, { method: 'PUT', body: { fullName: values.fullName, phoneNumber: values.phoneNumber, registrationNumber: values.registrationNumber } })
-        : api(`/classes/${values.classId}/participants`, { body: values }),
+    mutationFn: async (values: ParticipantFormValues) => {
+      if (!editing) return api(`/classes/${values.classId}/participants`, { body: values })
+      await api(`/participants/${editing.participantId}`, { method: 'PUT', body: { fullName: values.fullName, phoneNumber: values.phoneNumber, registrationNumber: values.registrationNumber } })
+      if (values.attendanceMode !== editing.attendanceMode) {
+        await api(`/enrollments/${editing.enrollmentId}`, { method: 'PUT', body: { attendanceMode: values.attendanceMode } })
+      }
+    },
     onSuccess: () => {
       message.success(editing ? 'Participant updated' : 'Participant added')
       setFormOpen(false)

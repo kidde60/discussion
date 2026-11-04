@@ -91,17 +91,15 @@ export default function ParticipantFormModal({ open, editing, classOptions, defa
             </Form.Item>
           )}
         />
-        {!editing && (
-          <Controller
-            name="attendanceMode"
-            control={control}
-            render={({ field }) => (
-              <Form.Item label="Attendance type">
-                <Select {...field} options={[{ value: 'ONLINE', label: 'Online' }, { value: 'PHYSICAL', label: 'Physical' }]} />
-              </Form.Item>
-            )}
-          />
-        )}
+        <Controller
+          name="attendanceMode"
+          control={control}
+          render={({ field }) => (
+            <Form.Item label="Attendance type" extra={editing ? 'Applies to this class only. A participant in a group can only change to the group\'s type after leaving it.' : undefined}>
+              <Select {...field} options={[{ value: 'ONLINE', label: 'Online' }, { value: 'PHYSICAL', label: 'Physical' }]} />
+            </Form.Item>
+          )}
+        />
       </Form>
     </Modal>
   )
