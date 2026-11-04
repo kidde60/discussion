@@ -6,6 +6,7 @@ import { logActivity } from '../lib/activity.mts'
 import { json, jsonError } from '../lib/http.mts'
 import { classGroups } from '../lib/groups.mts'
 import { classParticipants } from '../lib/participants.mts'
+import { classExport } from '../lib/export.mts'
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use the format YYYY-MM-DD')
 
@@ -42,6 +43,7 @@ async function handle(req: Request) {
   const { user, error } = write ? await authorize(req, ['ADMIN']) : await authorizeViewer(req)
   if (error) return error
 
+  if (segments[1] === 'export' && req.method === 'GET') return classExport(user, Number(segments[0]), url)
   if (segments[1] === 'groups') return classGroups(req, user, Number(segments[0]), segments.slice(2))
   if (segments[1] === 'participants') return classParticipants(req, user, Number(segments[0]), segments.slice(2), url)
   if (write) return handleWrite(req, user, segments)

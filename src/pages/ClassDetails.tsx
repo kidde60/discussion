@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Alert, Button, Card, Col, Descriptions, Row, Skeleton, Space, Statistic, Table, Tag, Typography, message } from 'antd'
-import { Archive, ArchiveRestore, ArrowLeft, Layers, Pencil, Plus, Users } from 'lucide-react'
+import { Alert, Button, Card, Col, Descriptions, Dropdown, Row, Skeleton, Space, Statistic, Table, Tag, Typography, message } from 'antd'
+import { Archive, ArchiveRestore, ArrowLeft, FileSpreadsheet, Layers, Pencil, Plus, Users } from 'lucide-react'
 import ClassFormModal, { type ClassFormValues } from '../components/classes/ClassFormModal'
 import GroupFormModal, { type GroupFormValues } from '../components/groups/GroupFormModal'
 import GenerateGroupsModal from '../components/groups/GenerateGroupsModal'
 import { useAuth } from '../context/AuthContext'
-import { api, ApiError } from '../services/api'
+import { api, ApiError, download } from '../services/api'
 import type { ClassStatus, ClassSummary } from '../types/classes'
 import type { AttendanceMode, GroupSummary } from '../types/groups'
 import AttendanceTag from '../components/common/AttendanceTag'
@@ -108,6 +108,18 @@ export default function ClassDetails() {
             <Link to={`/participants?classId=${c.id}`}><Button icon={<Users size={14} />}>Participants</Button></Link>
             {isAdmin && (
               <>
+                <Dropdown
+                  menu={{
+                    items: [
+                      { key: 'ONLINE', label: 'Online participants' },
+                      { key: 'PHYSICAL', label: 'Physical participants' },
+                      { key: 'ALL', label: 'Both' },
+                    ],
+                    onClick: ({ key }) => download(`/classes/${c.id}/export?attendanceMode=${key}`).catch((err) => message.error(err instanceof ApiError ? err.message : 'Export failed')),
+                  }}
+                >
+                  <Button icon={<FileSpreadsheet size={14} />}>Export</Button>
+                </Dropdown>
                 <Button icon={<Layers size={14} />} onClick={() => setGenerateOpen(true)}>Generate groups</Button>
                 <Button type="primary" icon={<Plus size={14} />} onClick={() => setGroupFormOpen(true)}>Create group</Button>
               </>

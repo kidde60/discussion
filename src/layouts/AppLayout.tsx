@@ -49,7 +49,7 @@ export default function AppLayout() {
   return (
     <Layout style={{ minHeight: '100vh' }}>
       {!isMobile && (
-        <Sider theme="light" width={220} style={{ borderRight: `1px solid ${token.colorBorderSecondary}` }}>
+        <Sider theme="light" width={220} style={{ borderRight: `1px solid ${token.colorBorderSecondary}`, position: 'sticky', top: 0, height: '100vh', overflow: 'auto' }}>
           <div className="px-6 py-5 text-base font-semibold" style={{ color: token.colorPrimary }}>
             Discussion Groups
           </div>
@@ -62,7 +62,7 @@ export default function AppLayout() {
         </Drawer>
       )}
       <Layout>
-        <Header className="flex items-center gap-3 px-4" style={{ background: token.colorBgContainer, borderBottom: `1px solid ${token.colorBorderSecondary}` }}>
+        <Header className="flex items-center gap-3 px-4" style={{ background: token.colorBgContainer, borderBottom: `1px solid ${token.colorBorderSecondary}`, position: 'sticky', top: 0, zIndex: 10, height: 64 }}>
           {isMobile && <Button type="text" icon={<MenuIcon size={20} />} onClick={() => setDrawerOpen(true)} aria-label="Open menu" />}
           <span className="font-medium">Discussion Group Manager</span>
           <div className="flex-1" />
@@ -79,6 +79,9 @@ export default function AppLayout() {
         <Content className="p-4 md:p-6">
           <Outlet />
         </Content>
+        <Layout.Footer style={{ background: token.colorBgContainer, borderTop: `1px solid ${token.colorBorderSecondary}`, textAlign: 'center' }}>
+          <Typography.Text type="secondary">Discussion Group Manager · {new Date().getFullYear()}</Typography.Text>
+        </Layout.Footer>
       </Layout>
     </Layout>
   )

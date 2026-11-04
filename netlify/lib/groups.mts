@@ -3,6 +3,7 @@ import { query, transaction, type Query } from './db.mts'
 import { logActivity } from './activity.mts'
 import type { SessionUser } from './auth.mts'
 import { ENROLLMENT_SELECT } from './enrollments.mts'
+import { groupExport } from './export.mts'
 import { json, jsonError } from './http.mts'
 
 const GROUP_SELECT = `
@@ -109,6 +110,8 @@ export async function group(req: Request, user: SessionUser | null, groupId: num
   if (!before) return jsonError(404, 'Group not found')
 
   if (req.method === 'GET' && rest.length === 0) return json({ group: before })
+
+  if (req.method === 'GET' && rest.length === 1 && rest[0] === 'export') return groupExport(user, groupId)
 
   if (req.method === 'GET' && rest.length === 1 && rest[0] === 'participants') {
     const members = await query(`${ENROLLMENT_SELECT} WHERE group_id = $1 ORDER BY full_name`, [groupId])

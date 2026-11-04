@@ -3,10 +3,10 @@ import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Alert, Button, Card, Descriptions, Input, Popconfirm, Select, Skeleton, Space, Table, Tag, Typography, message } from 'antd'
 import type { TableProps } from 'antd'
-import { ArrowLeft, Archive, ArchiveRestore, Pencil, UserMinus, UserPlus } from 'lucide-react'
+import { ArrowLeft, Archive, ArchiveRestore, FileSpreadsheet, Pencil, UserMinus, UserPlus } from 'lucide-react'
 import GroupFormModal, { type GroupFormValues } from '../components/groups/GroupFormModal'
 import { useAuth } from '../context/AuthContext'
-import { api, ApiError } from '../services/api'
+import { api, ApiError, download } from '../services/api'
 import type { AttendanceMode, GroupSummary } from '../types/groups'
 import AttendanceTag from '../components/common/AttendanceTag'
 import type { Enrollment } from '../types/participants'
@@ -119,6 +119,7 @@ export default function GroupDetails() {
         title={<Space>{g.name}<Tag color={g.status === 'ACTIVE' ? 'green' : 'default'}>{g.status}</Tag></Space>}
         extra={isAdmin && (
           <Space wrap>
+            <Button icon={<FileSpreadsheet size={14} />} onClick={() => download(`/groups/${groupId}/export`).catch((err) => fail(err))}>Export</Button>
             <Button icon={<Pencil size={14} />} onClick={() => setEditOpen(true)}>Edit</Button>
             {g.status === 'ACTIVE' ? (
               <Button icon={<Archive size={14} />} loading={setArchived.isPending} onClick={() => setArchived.mutate('ARCHIVED')}>Archive</Button>
