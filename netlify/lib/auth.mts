@@ -77,9 +77,6 @@ export async function authorizeViewer(req: Request) {
   return { user: await getSessionUser(req), error: null } as const
 }
 
-// Phone numbers are personal contact details. Only administrators see them.
-export const canSeePhone = (user: SessionUser | null) => user?.role === 'ADMIN'
-
 export async function isLoginRateLimited(emailKey: string, ipKey: string) {
   const rows = await sql`
     SELECT attempt_key, count(*)::int AS n FROM login_attempts

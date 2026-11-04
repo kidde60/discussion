@@ -2,8 +2,8 @@ import { z } from 'zod'
 import ExcelJS from 'exceljs'
 import { query, transaction, type Query } from './db.mts'
 import { logActivity } from './activity.mts'
-import { canSeePhone, type SessionUser } from './auth.mts'
-import { ENROLLMENT_SELECT, PHONE_PATTERN, hidePhone } from './enrollments.mts'
+import { type SessionUser } from './auth.mts'
+import { ENROLLMENT_SELECT, PHONE_PATTERN } from './enrollments.mts'
 import { json, jsonError } from './http.mts'
 
 const MAX_IMPORT_ROWS = 2000
@@ -46,9 +46,9 @@ export async function listEnrollments(user: SessionUser | null, url: URL, classI
        AND ($5::text IS NULL OR attendance_mode = $5::text)
        AND ($6::text IS NULL OR ($6::text = 'unassigned' AND group_id IS NULL) OR group_id::text = $6::text)
      ORDER BY full_name`,
-    [classId, search, pattern, canSeePhone(user), mode, group],
+    [classId, search, pattern, true, mode, group],
   )
-  return json({ participants: rows.map((r) => hidePhone(r, user)) })
+  return json({ participants: rows })
 }
 
 // Routes under /api/classes/:id/participants
@@ -310,7 +310,7 @@ export async function participants(req: Request, user: SessionUser | null, segme
       [id],
     )
     if (!person) return jsonError(404, 'Participant not found')
-    return json({ participant: hidePhone(person, user) })
+    return json({ participant: person })
   }
 
   const denied = requireAdmin(user)
@@ -348,6 +348,19 @@ export async function enrollments(req: Request, user: SessionUser | null, enroll
     const [after] = await query(`${ENROLLMENT_SELECT} WHERE enrollment_id = $1`, [enrollmentId])
     await logActivity({ userId: actor.id, action: 'ENROLLMENT_UPDATED', entityType: 'PARTICIPANT', entityId: before.participantId, description: `Changed attendance for ${before.fullName} in ${before.className}`, oldValues: { attendanceMode: before.attendanceMode }, newValues: { attendanceMode: after.attendanceMode } })
     return json({ participant: after })
+  }
+
+  // Deletes the participant from this class. The person record is removed too once they are in no other class.
+  if (req.method === 'DELETE' && rest.length === 0) {
+    const { remainingClasses } = await transaction(async (q) => {
+      await q(`UPDATE groups SET group_leader_id = NULL, updated_at = now() WHERE group_leader_id = $1`, [enrollmentId])
+      await q(`DELETE FROM class_enrollments WHERE id = $1`, [enrollmentId])
+      const [{ n }] = await q(`SELECT count(*)::int AS n FROM class_enrollments WHERE participant_id = $1`, [before.participantId])
+      if (n === 0) await q(`DELETE FROM participants WHERE id = $1`, [before.participantId])
+      return { remainingClasses: n as number }
+    })
+    await logActivity({ userId: actor.id, action: 'PARTICIPANT_DELETED', entityType: 'PARTICIPANT', entityId: before.participantId, description: `Deleted ${before.fullName} from ${before.className}${remainingClasses === 0 ? ' (person record removed)' : ''}`, oldValues: before })
+    return json({ deleted: true, personDeleted: remainingClasses === 0 })
   }
 
   // Assigns an unassigned participant to a group, or removes them from their group (groupId null).

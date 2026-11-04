@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, Card, Input, Modal, Select, Space, Table, Tag, Typography, message } from 'antd'
+import { Button, Card, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd'
 import type { TableProps } from 'antd'
-import { FileUp, Pencil, Plus, Search } from 'lucide-react'
+import { FileUp, Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
 import ParticipantFormModal, { type ParticipantFormValues } from '../components/participants/ParticipantFormModal'
 import ImportRosterModal from '../components/participants/ImportRosterModal'
@@ -67,6 +67,15 @@ export default function Participants() {
     onError: fail,
   })
 
+  const remove = useMutation({
+    mutationFn: (p: Enrollment) => api<{ personDeleted: boolean }>(`/enrollments/${p.enrollmentId}`, { method: 'DELETE' }),
+    onSuccess: (res, p) => {
+      message.success(res.personDeleted ? `${p.fullName} deleted` : `${p.fullName} removed from ${p.className}`)
+      refresh()
+    },
+    onError: fail,
+  })
+
   const openAdd = () => {
     setEditing(null)
     setFormOpen(true)
@@ -89,7 +98,24 @@ export default function Participants() {
       render: (v: string | null, p) => (v && p.groupId ? <Link to={`/groups/${p.groupId}`}>{v}</Link> : <Tag color="orange">Unassigned</Tag>),
     },
     ...(isAdmin
-      ? [{ title: '', key: 'actions', render: (_: unknown, p: Enrollment) => <Button size="small" icon={<Pencil size={14} />} onClick={() => openEdit(p)}>Edit</Button> }]
+      ? [{
+          title: '',
+          key: 'actions',
+          render: (_: unknown, p: Enrollment) => (
+            <Space size="small">
+              <Button size="small" icon={<Pencil size={14} />} onClick={() => openEdit(p)}>Edit</Button>
+              <Popconfirm
+                title={`Delete ${p.fullName} from ${p.className}?`}
+                description="They are removed from their group too. Their person record is deleted if they are not in any other class."
+                okText="Delete"
+                okButtonProps={{ danger: true }}
+                onConfirm={() => remove.mutate(p)}
+              >
+                <Button size="small" danger icon={<Trash2 size={14} />}>Delete</Button>
+              </Popconfirm>
+            </Space>
+          ),
+        }]
       : []),
   ]
 

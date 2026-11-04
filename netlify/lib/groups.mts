@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { query, transaction, type Query } from './db.mts'
 import { logActivity } from './activity.mts'
 import type { SessionUser } from './auth.mts'
-import { ENROLLMENT_SELECT, hidePhone } from './enrollments.mts'
+import { ENROLLMENT_SELECT } from './enrollments.mts'
 import { json, jsonError } from './http.mts'
 
 const GROUP_SELECT = `
@@ -112,7 +112,7 @@ export async function group(req: Request, user: SessionUser | null, groupId: num
 
   if (req.method === 'GET' && rest.length === 1 && rest[0] === 'participants') {
     const members = await query(`${ENROLLMENT_SELECT} WHERE group_id = $1 ORDER BY full_name`, [groupId])
-    return json({ participants: members.map((m) => hidePhone(m, user)) })
+    return json({ participants: members })
   }
 
   const denied = requireAdmin(user)
