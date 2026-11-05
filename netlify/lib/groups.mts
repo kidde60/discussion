@@ -32,14 +32,26 @@ const updateSchema = z.object({
 
 const statusSchema = z.object({ status: z.enum(['ACTIVE', 'ARCHIVED']) })
 
-const WHATSAPP_LINK = /^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9_-]+$/
+const WHATSAPP_CODE = /^\/[A-Za-z0-9_-]+$/
+// Accepts invite links with tracking parameters (?s=sh&p=a...) and stores only the clean invite URL.
 const whatsappSchema = z.object({
   link: z
     .string()
     .trim()
     .nullable()
-    .refine((v) => !v || WHATSAPP_LINK.test(v), 'Enter a valid WhatsApp group link (https://chat.whatsapp.com/...)')
-    .transform((v) => v || null),
+    .transform((v, ctx) => {
+      if (!v) return null
+      try {
+        const url = new URL(v)
+        if (url.protocol === 'https:' && url.hostname === 'chat.whatsapp.com' && WHATSAPP_CODE.test(url.pathname)) {
+          return `https://chat.whatsapp.com${url.pathname}`
+        }
+      } catch {
+        // not a URL; reported below
+      }
+      ctx.addIssue({ code: 'custom', message: 'Enter a valid WhatsApp group link (https://chat.whatsapp.com/...)' })
+      return z.NEVER
+    }),
 })
 
 const generateSchema = z.object({
