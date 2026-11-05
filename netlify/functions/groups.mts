@@ -10,7 +10,7 @@ async function handle(req: Request) {
   const { user, error } = req.method === 'GET' ? await authorizeViewer(req) : await authorize(req, ['ADMIN'])
   if (error) return error
 
-  if (segments.length === 0 && req.method === 'GET') return listGroups(url)
+  if (segments.length === 0 && req.method === 'GET') return listGroups(url, user)
   const id = Number(segments[0])
   if (!Number.isInteger(id)) return jsonError(400, 'Invalid group id')
   return group(req, user, id, segments.slice(1))

@@ -48,7 +48,7 @@ type Plan = { steps: Step[]; totalToAssign: number; leftover: number }
 const requireAdmin = (user: SessionUser | null) => (user?.role === 'ADMIN' ? null : jsonError(403, 'Forbidden'))
 
 // All groups across classes, filterable by class, attendance mode and status.
-export async function listGroups(url: URL) {
+export async function listGroups(url: URL, user: SessionUser | null) {
   const classParam = url.searchParams.get('classId')
   const classId = classParam && /^\d+$/.test(classParam) ? classParam : null
   const modeParam = url.searchParams.get('attendanceMode')
@@ -60,12 +60,12 @@ export async function listGroups(url: URL) {
   const groups = await query(
     `${GROUP_SELECT}
      WHERE ($1::bigint IS NULL OR class_id = $1::bigint)
-       AND attendance_mode = 'ONLINE'
+       AND ($6::boolean OR attendance_mode = 'ONLINE')
        AND ($2::text IS NULL OR attendance_mode = $2::text)
        AND ($3::text IS NULL OR status = $3::text)
        AND ($4::text = '' OR name ILIKE $5 OR group_leader_name ILIKE $5)
      ORDER BY class_name, group_number`,
-    [classId, mode, status, search, pattern],
+    [classId, mode, status, search, pattern, user?.role === 'ADMIN'],
   )
   return json({ groups })
 }
@@ -81,7 +81,7 @@ export async function classGroups(req: Request, user: SessionUser | null, classI
   }
 
   if (req.method === 'GET' && rest.length === 0) {
-    return json({ groups: await query(`${GROUP_SELECT} WHERE class_id = $1 AND attendance_mode = 'ONLINE' ORDER BY group_number`, [classId]) })
+    return json({ groups: await query(`${GROUP_SELECT} WHERE class_id = $1 AND ($2::boolean OR attendance_mode = 'ONLINE') ORDER BY group_number`, [classId, user?.role === 'ADMIN']) })
   }
 
   const denied = requireAdmin(user)
@@ -113,7 +113,7 @@ async function createGroup(req: Request, user: SessionUser, classId: string, def
 // Routes under /api/groups/:id
 export async function group(req: Request, user: SessionUser | null, groupId: number, rest: string[]) {
   const [before] = await query(`${GROUP_SELECT} WHERE id = $1`, [groupId])
-  if (!before || (req.method === 'GET' && before.attendanceMode !== 'ONLINE')) return jsonError(404, 'Group not found')
+  if (!before || (req.method === 'GET' && before.attendanceMode !== 'ONLINE' && user?.role !== 'ADMIN')) return jsonError(404, 'Group not found')
 
   if (req.method === 'GET' && rest.length === 0) return json({ group: before })
 
