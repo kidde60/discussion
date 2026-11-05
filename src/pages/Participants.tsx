@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Button, Card, Input, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd'
+import { Button, Card, Input, Modal, Popconfirm, Select, Space, Table, Tag, message } from 'antd'
 import type { TableProps } from 'antd'
 import { FileUp, Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { useDebouncedValue } from '../hooks/useDebouncedValue'
@@ -13,6 +13,7 @@ import type { ClassSummary } from '../types/classes'
 import type { Enrollment } from '../types/participants'
 import type { AttendanceMode } from '../types/groups'
 import AttendanceTag from '../components/common/AttendanceTag'
+import PhoneCell from '../components/common/PhoneCell'
 
 export default function Participants() {
   const { isAdmin } = useAuth()
@@ -92,7 +93,7 @@ export default function Participants() {
   const columns: TableProps<Enrollment>['columns'] = [
     { title: 'Full name', dataIndex: 'fullName' },
     { title: 'Registration number', dataIndex: 'registrationNumber' },
-    { title: 'Phone', dataIndex: 'phoneNumber', render: (v: string | null) => (v ?? <Typography.Text type="secondary">Hidden</Typography.Text>) },
+    { title: 'Phone', dataIndex: 'phoneNumber', render: (v: string | null) => <PhoneCell phone={v} /> },
     { title: 'Class', dataIndex: 'className' },
     { title: 'Attendance', dataIndex: 'attendanceMode', render: (m: AttendanceMode) => <AttendanceTag mode={m} /> },
     {

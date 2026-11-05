@@ -3,12 +3,13 @@ import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Alert, Button, Card, Descriptions, Input, Popconfirm, Select, Skeleton, Space, Table, Tag, Typography, message } from 'antd'
 import type { TableProps } from 'antd'
-import { ArrowLeft, Archive, ArchiveRestore, FileSpreadsheet, MessageCircle, Pencil, UserMinus, UserPlus } from 'lucide-react'
+import { ArrowLeft, Archive, ArchiveRestore, Copy, FileSpreadsheet, MessageCircle, Pencil, UserMinus, UserPlus } from 'lucide-react'
 import GroupFormModal, { type GroupFormValues } from '../components/groups/GroupFormModal'
 import { useAuth } from '../context/AuthContext'
 import { api, ApiError, download } from '../services/api'
 import type { AttendanceMode, GroupSummary } from '../types/groups'
 import AttendanceTag from '../components/common/AttendanceTag'
+import PhoneCell from '../components/common/PhoneCell'
 import type { Enrollment } from '../types/participants'
 
 export default function GroupDetails() {
@@ -101,7 +102,7 @@ export default function GroupDetails() {
   const columns: TableProps<Enrollment>['columns'] = [
     { title: 'Full name', dataIndex: 'fullName' },
     { title: 'Registration number', dataIndex: 'registrationNumber' },
-    { title: 'Phone', dataIndex: 'phoneNumber', render: (v: string | null) => (v ?? <Typography.Text type="secondary">Hidden</Typography.Text>) },
+    { title: 'Phone', dataIndex: 'phoneNumber', render: (v: string | null) => <PhoneCell phone={v} /> },
     { title: 'Attendance', dataIndex: 'attendanceMode', render: (m: AttendanceMode) => <AttendanceTag mode={m} /> },
     ...(isAdmin
       ? [{
@@ -152,14 +153,23 @@ export default function GroupDetails() {
       <Card
         title="WhatsApp group"
         extra={
-          <Button
-            type="primary"
-            icon={<MessageCircle size={14} />}
-            disabled={!g.whatsappLink}
-            onClick={() => g.whatsappLink && window.open(g.whatsappLink, '_blank', 'noopener,noreferrer')}
-          >
-            Join WhatsApp group
-          </Button>
+          <Space wrap>
+            <Button
+              icon={<Copy size={14} />}
+              disabled={!g.whatsappLink}
+              onClick={() => g.whatsappLink && navigator.clipboard.writeText(g.whatsappLink).then(() => message.success('WhatsApp link copied'), fail)}
+            >
+              Copy link
+            </Button>
+            <Button
+              type="primary"
+              icon={<MessageCircle size={14} />}
+              disabled={!g.whatsappLink}
+              onClick={() => g.whatsappLink && window.open(g.whatsappLink, '_blank', 'noopener,noreferrer')}
+            >
+              Join WhatsApp group
+            </Button>
+          </Space>
         }
       >
         {g.whatsappLink ? (
