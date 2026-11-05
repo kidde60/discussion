@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Alert, Button, Card, Descriptions, Input, Popconfirm, Select, Skeleton, Space, Table, Tag, Typography, message } from 'antd'
 import type { TableProps } from 'antd'
-import { ArrowLeft, Archive, ArchiveRestore, FileSpreadsheet, Pencil, UserMinus, UserPlus } from 'lucide-react'
+import { ArrowLeft, Archive, ArchiveRestore, FileSpreadsheet, MessageCircle, Pencil, UserMinus, UserPlus } from 'lucide-react'
 import GroupFormModal, { type GroupFormValues } from '../components/groups/GroupFormModal'
 import { useAuth } from '../context/AuthContext'
 import { api, ApiError, download } from '../services/api'
@@ -18,6 +18,7 @@ export default function GroupDetails() {
   const [search, setSearch] = useState('')
   const [editOpen, setEditOpen] = useState(false)
   const [assignId, setAssignId] = useState<string | undefined>()
+  const [whatsappDraft, setWhatsappDraft] = useState<string | null>(null)
 
   const group = useQuery({
     queryKey: ['group', groupId],
@@ -65,6 +66,16 @@ export default function GroupDetails() {
     onSuccess: () => {
       message.success('Participant assigned')
       setAssignId(undefined)
+      refresh()
+    },
+    onError: fail,
+  })
+
+  const saveWhatsapp = useMutation({
+    mutationFn: (link: string) => api(`/groups/${groupId}/whatsapp`, { method: 'PATCH', body: { link: link.trim() || null } }),
+    onSuccess: (_, link) => {
+      message.success(link.trim() ? 'WhatsApp link saved' : 'WhatsApp link removed')
+      setWhatsappDraft(null)
       refresh()
     },
     onError: fail,
@@ -136,6 +147,43 @@ export default function GroupDetails() {
           <Descriptions.Item label="Members">{g.currentMembers} ({g.availableSpaces} spaces left)</Descriptions.Item>
           <Descriptions.Item label="Group leader">{g.groupLeaderName ?? 'Not assigned'}</Descriptions.Item>
         </Descriptions>
+      </Card>
+
+      <Card
+        title="WhatsApp group"
+        extra={
+          <Button
+            type="primary"
+            icon={<MessageCircle size={14} />}
+            disabled={!g.whatsappLink}
+            onClick={() => g.whatsappLink && window.open(g.whatsappLink, '_blank', 'noopener,noreferrer')}
+          >
+            Join WhatsApp group
+          </Button>
+        }
+      >
+        {g.whatsappLink ? (
+          <Typography.Text type="secondary">Members can join the group chat with the button above.</Typography.Text>
+        ) : (
+          <Typography.Text type="secondary">No WhatsApp link yet. The join button activates once an administrator adds one.</Typography.Text>
+        )}
+        {isAdmin && (
+          <Space.Compact className="mt-3 w-full">
+            <Input
+              value={whatsappDraft ?? g.whatsappLink ?? ''}
+              onChange={(e) => setWhatsappDraft(e.target.value)}
+              placeholder="https://chat.whatsapp.com/..."
+              allowClear
+            />
+            <Button
+              loading={saveWhatsapp.isPending}
+              onClick={() => saveWhatsapp.mutate(whatsappDraft ?? g.whatsappLink ?? '')}
+              disabled={(whatsappDraft ?? g.whatsappLink ?? '').trim() === (g.whatsappLink ?? '')}
+            >
+              Save link
+            </Button>
+          </Space.Compact>
+        )}
       </Card>
 
       <Card

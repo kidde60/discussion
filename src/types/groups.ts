@@ -11,6 +11,7 @@ export type GroupSummary = {
   capacity: number
   attendanceMode: AttendanceMode
   status: ClassStatus
+  whatsappLink: string | null
   groupLeaderId: string | null
   groupLeaderName: string | null
   currentMembers: number

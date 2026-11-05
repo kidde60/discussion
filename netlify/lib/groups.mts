@@ -8,7 +8,7 @@ import { json, jsonError } from './http.mts'
 
 const GROUP_SELECT = `
   SELECT id, class_id AS "classId", class_name AS "className", name, group_number AS "groupNumber", capacity,
-         attendance_mode AS "attendanceMode", status, group_leader_id AS "groupLeaderId",
+         attendance_mode AS "attendanceMode", status, whatsapp_link AS "whatsappLink", group_leader_id AS "groupLeaderId",
          group_leader_name AS "groupLeaderName", current_members AS "currentMembers",
          available_spaces AS "availableSpaces", created_at AS "createdAt"
   FROM group_overview`
@@ -31,6 +31,16 @@ const updateSchema = z.object({
 })
 
 const statusSchema = z.object({ status: z.enum(['ACTIVE', 'ARCHIVED']) })
+
+const WHATSAPP_LINK = /^https:\/\/chat\.whatsapp\.com\/[A-Za-z0-9_-]+$/
+const whatsappSchema = z.object({
+  link: z
+    .string()
+    .trim()
+    .nullable()
+    .refine((v) => !v || WHATSAPP_LINK.test(v), 'Enter a valid WhatsApp group link (https://chat.whatsapp.com/...)')
+    .transform((v) => v || null),
+})
 
 const generateSchema = z.object({
   attendanceMode: modeSchema,
@@ -127,6 +137,16 @@ export async function group(req: Request, user: SessionUser | null, groupId: num
   const denied = requireAdmin(user)
   if (denied) return denied
   const actor = user as SessionUser
+
+  if (req.method === 'PATCH' && rest.length === 1 && rest[0] === 'whatsapp') {
+    const parsed = whatsappSchema.safeParse(await req.json().catch(() => null))
+    if (!parsed.success) return jsonError(400, parsed.error.issues[0].message)
+    const link = parsed.data.link
+    await query(`UPDATE groups SET whatsapp_link = $1, updated_at = now() WHERE id = $2`, [link, groupId])
+    const [after] = await query(`${GROUP_SELECT} WHERE id = $1`, [groupId])
+    await logActivity({ userId: actor.id, action: 'GROUP_WHATSAPP_UPDATED', entityType: 'GROUP', entityId: groupId, description: `${link ? 'Set' : 'Removed'} WhatsApp link for ${before.name}`, oldValues: { whatsappLink: before.whatsappLink }, newValues: { whatsappLink: link } })
+    return json({ group: after })
+  }
 
   if (req.method === 'PUT' && rest.length === 0) {
     const parsed = updateSchema.safeParse(await req.json().catch(() => null))
