@@ -42,6 +42,7 @@ export async function listEnrollments(user: SessionUser | null, url: URL, classI
   const rows = await query(
     `${ENROLLMENT_SELECT}
      WHERE ($1::bigint IS NULL OR class_id = $1::bigint)
+       AND attendance_mode = 'ONLINE'
        AND ($2::text = '' OR full_name ILIKE $3 OR registration_number ILIKE $3 OR ($4::boolean AND phone_number ILIKE $3))
        AND ($5::text IS NULL OR attendance_mode = $5::text)
        AND ($6::text IS NULL OR ($6::text = 'unassigned' AND group_id IS NULL) OR group_id::text = $6::text)

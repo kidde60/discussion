@@ -43,13 +43,11 @@ export default function GroupFormModal({ open, editing, classId, classOptions, d
     queryFn: () => api<{ participants: Enrollment[] }>(`/classes/${leaderClass}/participants`).then((r) => r.participants),
   })
 
-  const classGroups = useQuery({
-    queryKey: ['class-groups', selectedClass],
+  const nextName = useQuery({
+    queryKey: ['next-group-name', selectedClass],
     enabled: open && !editing && Boolean(selectedClass),
-    queryFn: () => api<{ groups: GroupSummary[] }>(`/classes/${selectedClass}/groups`).then((r) => r.groups),
+    queryFn: () => api<{ name: string }>(`/classes/${selectedClass}/groups/next-name`).then((r) => r.name),
   })
-  const nextNumber = Math.max(0, ...(classGroups.data ?? []).map((g) => g.groupNumber)) + 1
-  const suggestedName = `Group ${String(nextNumber).padStart(2, '0')}`
 
   useEffect(() => {
     if (!open) return
@@ -61,8 +59,8 @@ export default function GroupFormModal({ open, editing, classId, classOptions, d
   }, [open, editing, classId, defaultCapacity, reset])
 
   useEffect(() => {
-    if (open && !editing && selectedClass && classGroups.data) setValue('name', suggestedName)
-  }, [open, editing, selectedClass, classGroups.data, suggestedName, setValue])
+    if (open && !editing && selectedClass && nextName.data) setValue('name', nextName.data)
+  }, [open, editing, selectedClass, nextName.data, setValue])
 
   const leaderOptions = (enrollments.data ?? []).map((p) => ({ value: p.enrollmentId, label: `${p.fullName} (${p.registrationNumber}) · ${p.attendanceMode === 'ONLINE' ? 'Online' : 'Physical'}` }))
 

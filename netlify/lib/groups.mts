@@ -60,6 +60,7 @@ export async function listGroups(url: URL) {
   const groups = await query(
     `${GROUP_SELECT}
      WHERE ($1::bigint IS NULL OR class_id = $1::bigint)
+       AND attendance_mode = 'ONLINE'
        AND ($2::text IS NULL OR attendance_mode = $2::text)
        AND ($3::text IS NULL OR status = $3::text)
        AND ($4::text = '' OR name ILIKE $5 OR group_leader_name ILIKE $5)
@@ -74,8 +75,13 @@ export async function classGroups(req: Request, user: SessionUser | null, classI
   const [cls] = await query(`SELECT id, group_capacity AS "groupCapacity" FROM classes WHERE id = $1`, [classId])
   if (!cls) return jsonError(404, 'Class not found')
 
+  if (req.method === 'GET' && rest[0] === 'next-name') {
+    const [{ next }] = await query(`SELECT (COALESCE(MAX(group_number), 0) + 1)::int AS next FROM groups WHERE class_id = $1`, [classId])
+    return json({ name: groupName(next) })
+  }
+
   if (req.method === 'GET' && rest.length === 0) {
-    return json({ groups: await query(`${GROUP_SELECT} WHERE class_id = $1 ORDER BY group_number`, [classId]) })
+    return json({ groups: await query(`${GROUP_SELECT} WHERE class_id = $1 AND attendance_mode = 'ONLINE' ORDER BY group_number`, [classId]) })
   }
 
   const denied = requireAdmin(user)
@@ -107,7 +113,7 @@ async function createGroup(req: Request, user: SessionUser, classId: string, def
 // Routes under /api/groups/:id
 export async function group(req: Request, user: SessionUser | null, groupId: number, rest: string[]) {
   const [before] = await query(`${GROUP_SELECT} WHERE id = $1`, [groupId])
-  if (!before) return jsonError(404, 'Group not found')
+  if (!before || (req.method === 'GET' && before.attendanceMode !== 'ONLINE')) return jsonError(404, 'Group not found')
 
   if (req.method === 'GET' && rest.length === 0) return json({ group: before })
 

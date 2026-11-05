@@ -7,6 +7,8 @@ import { useAuth } from '../context/AuthContext'
 
 const { Header, Sider, Content } = Layout
 
+const YEAR = new Date().getFullYear()
+
 const navItems = [
   { key: '/', icon: <LayoutDashboard size={18} />, label: 'Dashboard' },
   { key: '/classes', icon: <BookOpen size={18} />, label: 'Classes' },
@@ -80,7 +82,7 @@ export default function AppLayout() {
           <Outlet />
         </Content>
         <Layout.Footer style={{ background: token.colorBgContainer, borderTop: `1px solid ${token.colorBorderSecondary}`, textAlign: 'center' }}>
-          <Typography.Text type="secondary">Discussion Group Manager · {new Date().getFullYear()}</Typography.Text>
+          <Typography.Text type="secondary">Discussion Group Manager · {YEAR}</Typography.Text>
         </Layout.Footer>
       </Layout>
     </Layout>
