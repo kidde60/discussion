@@ -2,7 +2,7 @@ import { query } from './db.mts'
 import type { SessionUser } from './auth.mts'
 import { json } from './http.mts'
 
-// Non-admins see the same Online-only view as the rest of the app, so physical figures are omitted for them.
+// Public figures include both attendance types. Only the activity feed and user details are admin-only.
 export async function summary(user: SessionUser | null) {
   const isAdmin = user?.role === 'ADMIN'
   const [stats] = await query(
@@ -10,14 +10,13 @@ export async function summary(user: SessionUser | null) {
        (SELECT count(*)::int FROM classes) AS "totalClasses",
        (SELECT count(*)::int FROM classes WHERE status = 'ACTIVE') AS "activeClasses",
        (SELECT count(*)::int FROM classes WHERE status = 'ARCHIVED') AS "archivedClasses",
-       (SELECT count(DISTINCT participant_id)::int FROM class_enrollments WHERE $1::boolean OR attendance_mode = 'ONLINE') AS "totalParticipants",
+       (SELECT count(DISTINCT participant_id)::int FROM class_enrollments) AS "totalParticipants",
        (SELECT count(*)::int FROM class_enrollments WHERE attendance_mode = 'ONLINE') AS "onlineParticipants",
        (SELECT count(*)::int FROM class_enrollments WHERE attendance_mode = 'PHYSICAL') AS "physicalParticipants",
-       (SELECT count(*)::int FROM class_enrollments WHERE group_id IS NULL AND ($1::boolean OR attendance_mode = 'ONLINE')) AS "unassignedParticipants",
-       (SELECT count(*)::int FROM groups WHERE $1::boolean OR attendance_mode = 'ONLINE') AS "totalGroups",
+       (SELECT count(*)::int FROM class_enrollments WHERE group_id IS NULL) AS "unassignedParticipants",
+       (SELECT count(*)::int FROM groups) AS "totalGroups",
        (SELECT count(*)::int FROM groups WHERE attendance_mode = 'ONLINE') AS "onlineGroups",
        (SELECT count(*)::int FROM groups WHERE attendance_mode = 'PHYSICAL') AS "physicalGroups"`,
-    [isAdmin],
   )
 
   const recentClasses = await query(
@@ -30,9 +29,7 @@ export async function summary(user: SessionUser | null) {
     `SELECT full_name AS "fullName", class_name AS "className", attendance_mode AS "attendanceMode",
             group_name AS "groupName", created_at AS "createdAt"
      FROM enrollment_overview
-     WHERE $1::boolean OR attendance_mode = 'ONLINE'
      ORDER BY created_at DESC LIMIT 5`,
-    [isAdmin],
   )
 
   const distribution = await query(
@@ -43,10 +40,9 @@ export async function summary(user: SessionUser | null) {
             (COALESCE(sum(g.current_members), 0))::int AS members,
             (COALESCE(sum(g.capacity), 0))::int AS capacity
      FROM classes c
-     LEFT JOIN group_overview g ON g.class_id = c.id AND ($1::boolean OR g.attendance_mode = 'ONLINE')
+     LEFT JOIN group_overview g ON g.class_id = c.id
      GROUP BY c.id, c.name
      ORDER BY c.start_date DESC, c.id DESC`,
-    [isAdmin],
   )
 
   const recentActivity = isAdmin
@@ -57,13 +53,12 @@ export async function summary(user: SessionUser | null) {
       )
     : null
 
-  const hideIfPublic = (r: Record<string, unknown>) => (isAdmin ? r : { ...r, physicalGroups: undefined, physicalParticipants: undefined })
   return json({
     isAdmin,
-    stats: isAdmin ? stats : { ...stats, physicalParticipants: null, physicalGroups: null },
+    stats,
     recentClasses,
     recentParticipants,
-    groupDistribution: distribution.map(hideIfPublic),
+    groupDistribution: distribution,
     recentActivity,
   })
 }

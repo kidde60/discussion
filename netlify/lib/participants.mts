@@ -31,7 +31,7 @@ const sameName = (a: string, b: string) => a.trim().replace(/\s+/g, ' ').toLower
 const requireAdmin = (user: SessionUser | null) => (user?.role === 'ADMIN' ? null : jsonError(403, 'Forbidden'))
 
 // Lists enrollments. classId null means across all classes.
-export async function listEnrollments(user: SessionUser | null, url: URL, classId: number | null) {
+export async function listEnrollments(url: URL, classId: number | null) {
   const search = (url.searchParams.get('search') ?? '').trim()
   const pattern = `%${search.replace(/[%_\\]/g, '\\$&')}%`
   const modeParam = url.searchParams.get('attendanceMode')
@@ -42,12 +42,12 @@ export async function listEnrollments(user: SessionUser | null, url: URL, classI
   const rows = await query(
     `${ENROLLMENT_SELECT}
      WHERE ($1::bigint IS NULL OR class_id = $1::bigint)
-       AND ($7::boolean OR attendance_mode = 'ONLINE')
+
        AND ($2::text = '' OR full_name ILIKE $3 OR registration_number ILIKE $3 OR ($4::boolean AND phone_number ILIKE $3))
        AND ($5::text IS NULL OR attendance_mode = $5::text)
        AND ($6::text IS NULL OR ($6::text = 'unassigned' AND group_id IS NULL) OR group_id::text = $6::text)
      ORDER BY full_name`,
-    [classId, search, pattern, true, mode, group, user?.role === 'ADMIN'],
+    [classId, search, pattern, true, mode, group],
   )
   return json({ participants: rows })
 }
@@ -57,7 +57,7 @@ export async function classParticipants(req: Request, user: SessionUser | null, 
   const [cls] = await query(`SELECT id FROM classes WHERE id = $1`, [classId])
   if (!cls) return jsonError(404, 'Class not found')
 
-  if (req.method === 'GET' && rest.length === 0) return listEnrollments(user, url, classId)
+  if (req.method === 'GET' && rest.length === 0) return listEnrollments(url, classId)
 
   const denied = requireAdmin(user)
   if (denied) return denied
@@ -300,7 +300,7 @@ async function importRoster(req: Request, actor: SessionUser, classId: number) {
 
 // Routes under /api/participants (person records and the all-classes list)
 export async function participants(req: Request, user: SessionUser | null, segments: string[], url: URL) {
-  if (segments.length === 0 && req.method === 'GET') return listEnrollments(user, url, url.searchParams.get('classId') ? Number(url.searchParams.get('classId')) : null)
+  if (segments.length === 0 && req.method === 'GET') return listEnrollments(url, url.searchParams.get('classId') ? Number(url.searchParams.get('classId')) : null)
 
   const id = Number(segments[0])
   if (!Number.isInteger(id)) return jsonError(404, 'Not found')
